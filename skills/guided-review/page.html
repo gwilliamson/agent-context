@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guided Review</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff; --panel: #f6f7f8; --text: #1c2024; --muted: #60676f; --border: #d9dde1;
+  --add: #e6f6ea; --del: #fcebea; --hit: #fff1b8; --hit-edge: #b98900;
+  --accent: #1f5fbf; --accent-text: #ffffff; --head: #eef0f2;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #15181b; --panel: #1c2024; --text: #e6e8ea; --muted: #9aa2aa; --border: #30363c;
+    --add: #17301f; --del: #3a1d1c; --hit: #4a3c0c; --hit-edge: #e0b52e;
+    --accent: #78a9f0; --accent-text: #10161f; --head: #23282d;
+  }
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--text); font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+#app { display: grid; grid-template-columns: minmax(0, 1fr) 9px var(--panel-width, 50%); height: 100vh; }
+#diff { overflow: auto; color-scheme: dark; background: #1e1e1e; color: #d4d4d4; font: 12.5px/1.6 "SF Mono", SFMono-Regular, ui-monospace, Menlo, monospace; }
+.c-kw { color: #c586c0; } .c-const { color: #569cd6; } .c-str { color: #ce9178; } .c-com { color: #6a9955; font-style: italic; }
+.c-num { color: #b5cea8; } .c-fn { color: #dcdcaa; } .c-type { color: #4ec9b0; } .c-var { color: #9cdcfe; } .c-prop { color: #9cdcfe; }
+#splitter { cursor: col-resize; touch-action: none; background: linear-gradient(var(--border), var(--border)) center / 1px 100% no-repeat; }
+#splitter:hover, #splitter.dragging { background-color: var(--head); }
+#aside { overflow: auto; background: var(--panel); }
+#panel { padding: 20px; }
+.file-head { position: sticky; top: 0; z-index: 1; left: 0; padding: 7px 14px; background: #252526; color: #e7e7e7; border-top: 1px solid #007acc; border-bottom: 1px solid #1e1e1e; font: 12.5px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+table { border-collapse: collapse; min-width: 100%; }
+td { padding: 0 8px; white-space: pre; vertical-align: top; }
+td.num { width: 1%; min-width: 44px; color: #858585; text-align: right; user-select: none; }
+td.mark { width: 1%; padding: 0 2px 0 4px; color: #858585; user-select: none; }
+td.code { width: 100%; }
+tr.add td { background: rgba(46, 160, 67, .17); }
+tr.add td.mark { color: #3fb950; }
+tr.del td { background: rgba(248, 81, 73, .17); }
+tr.del td.mark { color: #f85149; }
+tr.gap td { color: #8b949e; background: #252a30; }
+tr.hit td { background: rgba(255, 196, 0, .2); }
+tr.hit td.num:first-child { box-shadow: inset 3px 0 #e0b52e; color: #e7e7e7; }
+.step { color: var(--muted); font-size: 13px; margin: 0 0 4px; }
+h1 { font-size: 18px; line-height: 1.3; margin: 0 0 12px; }
+h2 { font-size: 14px; margin: 18px 0 6px; }
+p { margin: 0 0 10px; }
+.pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.body { max-height: 240px; overflow: auto; padding: 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); }
+.loc { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; overflow-wrap: anywhere; display: block; margin-bottom: 10px; }
+a { color: var(--accent); }
+fieldset { border: 0; padding: 0; margin: 16px 0; }
+legend { padding: 0; font-weight: 600; margin-bottom: 6px; }
+label.opt { display: flex; gap: 8px; padding: 6px 2px; cursor: pointer; }
+label.text { display: block; font-weight: 600; margin: 16px 0 6px; }
+textarea { width: 100%; min-height: 84px; padding: 8px; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; resize: vertical; }
+ul { margin: 0 0 10px; padding-left: 18px; }
+.nav { display: flex; justify-content: space-between; gap: 8px; margin-top: 20px; }
+button { min-height: 36px; padding: 6px 14px; font: inherit; border: 1px solid var(--border); border-radius: 6px; color: var(--text); background: var(--bg); cursor: pointer; }
+button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; }
+button:disabled { opacity: .5; cursor: not-allowed; }
+button.small { min-height: 28px; padding: 2px 10px; font-size: 13px; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.notice { padding: 8px 10px; border-left: 3px solid var(--hit-edge); background: var(--hit); margin-bottom: 10px; font-size: 13.5px; }
+.verdict { font-size: 17px; font-weight: 600; margin-bottom: 6px; }
+.muted { color: var(--muted); font-size: 13px; }
+.reqs { list-style: none; padding: 0; }
+.reqs li { padding: 8px 0; border-top: 1px solid var(--border); }
+.reqs b { display: block; }
+#panel.fill { display: flex; flex-direction: column; height: 100%; }
+#panel.fill > * { flex: none; }
+#panel.fill > .explanation { flex: 1 1 0; min-height: 120px; overflow: auto; padding: 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); }
+.decide { margin-top: 12px; }
+.decide fieldset { margin: 0; display: flex; flex-wrap: wrap; column-gap: 18px; }
+.decide legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.decide label.text { margin-top: 8px; }
+.decide .nav { margin-top: 12px; }
+@media (max-width: 900px) {
+  #app { grid-template-columns: minmax(0, 1fr); grid-template-rows: 45vh minmax(0, 1fr); }
+  #splitter { display: none; }
+  #aside { border-top: 1px solid var(--border); }
+  #panel { padding: 16px; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <main id="diff" aria-label="Pull request diff" tabindex="0"></main>
+  <div id="splitter" role="separator" aria-orientation="vertical" aria-label="Resize the code and questions panels" tabindex="0"></div>
+  <aside id="aside">
+    <div id="panel" aria-live="polite"></div>
+  </aside>
+</div>
+<script>
+"use strict";
+// PR text is untrusted: everything reaches the DOM as text, never as markup.
+const FIRST_BATCH = 5;
+const diffEl = document.getElementById("diff");
+const panel = document.getElementById("panel");
+const aside = document.getElementById("aside");
+const app = document.getElementById("app");
+const splitter = document.getElementById("splitter");
+const startedAt = Date.now();
+const MIN_PANE = 280;
+
+// Per-viewer conveniences only; the page works the same if storage is blocked.
+const load = (key) => { try { return localStorage.getItem(key); } catch { return null; } };
+const save = (key, value) => { try { localStorage.setItem(key, value); } catch {} };
+
+const TEXT = {
+    description: "The author's description", noDescription: "No description.",
+    assessment: "Does the full diff satisfy the ticket?", against: "Measured against", noTicket: "No ticket found, so this is measured against the author's description only.",
+    confidence: "confidence", confidenceHelp: "Confidence is the agent's own estimate, not a measured accuracy.",
+    satisfied: { yes: "Yes", partly: "Partly", no: "No", unknown: "Can't tell" },
+    status: { met: "Met", partly: "Partly met", missing: "Missing", unverifiable: "Can't verify" },
+    agentSaid: "The agent's assessment", start: "Start the review",
+    intent: "Does this change do what it is meant to do?",
+    intentDiff: "Yes, I confirmed it in the diff", intentAgent: "Yes, going by the agent's assessment", intentUnsure: "Not sure", intentNo: "No",
+    explain: "Anything to explain? (optional)", next: "Next", back: "Back", submit: "Submit",
+    finding: "Finding", of: "of", notInDiff: "This line isn't in the diff. Open the link above to see it.",
+    what: "What should happen?", whatMust: "Must fix", whatSuggest: "Suggestion", whatDismiss: "Dismiss",
+    note: "What do you want to say to the author? (optional)", useAgent: "Use the agent's wording",
+    more: (n) => `${n} lower-ranked finding${n === 1 ? "" : "s"} left`, moreHelp: "Skipped findings are reported as not reviewed.",
+    review: "Review them", skip: "Skip them",
+    closing: "Closing", notChecked: "The agent did not check", noGaps: "It reported no gaps.",
+    concerns: "Anything else concerning? (optional)", understand: "How much of this change do you personally understand?",
+    understandAll: "All of it", understandRisky: "The risky parts", understandAgent: "Only what the agent told me",
+    sent: "Answers sent", sentHelp: "Your draft response will appear in the Claude conversation. Nothing has been posted.",
+    failed: "Your answers weren't sent. Try Submit again.",
+    detail: "Detailed explanation",
+};
+const t = (key) => TEXT[key];
+
+function setPanelWidth(px, persist = true) {
+  const width = Math.max(MIN_PANE, Math.min(app.clientWidth - MIN_PANE, px));
+  app.style.setProperty("--panel-width", `${width}px`);
+  splitter.setAttribute("aria-valuenow", String(Math.round((width / app.clientWidth) * 100)));
+  if (persist) save("guided-review-panel-width", String(width));
+}
+
+const savedWidth = Number(load("guided-review-panel-width"));
+if (savedWidth) setPanelWidth(savedWidth, false);
+splitter.addEventListener("pointerdown", (e) => {
+  e.preventDefault();
+  splitter.setPointerCapture(e.pointerId);
+  splitter.classList.add("dragging");
+});
+splitter.addEventListener("pointermove", (e) => {
+  if (splitter.classList.contains("dragging")) setPanelWidth(app.getBoundingClientRect().right - e.clientX);
+});
+const endDrag = () => splitter.classList.remove("dragging");
+splitter.addEventListener("pointerup", endDrag);
+splitter.addEventListener("pointercancel", endDrag);
+splitter.addEventListener("keydown", (e) => {
+  const step = { ArrowLeft: 32, ArrowRight: -32 }[e.key];
+  if (!step) return;
+  e.preventDefault();
+  setPanelWidth(aside.offsetWidth + step);
+});
+let review, rows = new Map(), highlighted = null;
+const a = {
+  findings: [],
+  closing: { intent: null, intent_note: "", concerns: "", understanding: null },
+};
+let screen = "opening", index = 0, reviewAll = false;
+
+function h(tag, props = {}, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (k === "class") el.className = v;
+    else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else if (k in el) el[k] = v;
+    else el.setAttribute(k, v);
+  }
+  for (const kid of kids) if (kid != null) el.append(kid);
+  return el;
+}
+
+// ponytail: line-based tokenizer, not a parser, so rare constructs can miscolor.
+// Vendor highlight.js if it misreads real code often.
+const words = (s) => new Set(s.split(" "));
+const LANGS = {
+  py: { line: ["#"], triple: ['"""', "'''"], quotes: "'\"", at: "c-fn", ids: true,
+    kw: words("and as assert async await break class continue def del elif else except finally for from global if import in is lambda nonlocal not or pass raise return try while with yield match case"),
+    consts: words("True False None self cls") },
+  ts: { line: ["//"], block: ["/*", "*/"], quotes: "'\"`", multi: "`", at: "c-fn", ids: true,
+    kw: words("as async await break case catch class const continue debugger default delete do else enum export extends finally for from function if implements import in instanceof interface let new of return static switch throw try type typeof var void while yield"),
+    consts: words("true false null undefined this super") },
+  css: { block: ["/*", "*/"], quotes: "'\"", at: "c-kw", dash: true, keyColon: true, kw: new Set(), consts: new Set() },
+  sh: { line: ["#"], quotes: "'\"", dash: true, keyStart: true, kw: words("if then else elif fi for while do done case esac in function return export local"), consts: new Set() },
+  yaml: { line: ["#"], quotes: "'\"", dash: true, keyStart: true, kw: new Set(), consts: words("true false null") },
+  sql: { line: ["--"], block: ["/*", "*/"], quotes: "'", dash: false, fold: true,
+    kw: words("select from where insert into update delete create table alter add drop index on primary key foreign references not null default unique and or as join left right inner outer group by order having limit values set begin commit rollback using policy enable row level security grant to if exists"),
+    consts: words("true false") },
+  json: { quotes: '"', jsonKeys: true, kw: new Set(), consts: words("true false null") },
+  md: { quotes: "`", headings: true, kw: new Set(), consts: new Set(), plain: true },
+};
+const EXTENSIONS = { py: "py", ts: "ts", tsx: "ts", js: "ts", jsx: "ts", mjs: "ts", css: "css", scss: "css", sh: "sh", bash: "sh", zsh: "sh", yml: "yaml", yaml: "yaml", toml: "yaml", sql: "sql", json: "json", md: "md" };
+function langOf(file) {
+  const name = file.split("/").pop();
+  if (name.startsWith(".env")) return LANGS.sh;
+  return LANGS[EXTENSIONS[name.split(".").pop()]] || null;
+}
+
+// Returns [class, text] pairs plus the comment or string still open at line end.
+function tokenize(code, lang, open) {
+  if (!lang) return { tokens: [["", code]], open: null };
+  if (lang.headings && /^#{1,6} /.test(code)) return { tokens: [["c-const", code]], open: null };
+  const tokens = [];
+  let i = 0, prevWord = "";
+  const take = (cls, end) => { if (end > i) tokens.push([cls, code.slice(i, end)]); i = end; };
+  while (i < code.length) {
+    if (open) {
+      const end = code.indexOf(open.close, i);
+      if (end < 0) { take(open.cls, code.length); break; }
+      take(open.cls, end + open.close.length);
+      open = null;
+      continue;
+    }
+    const rest = code.slice(i);
+    const ch = code[i];
+    if (lang.line?.some((c) => rest.startsWith(c))) { take("c-com", code.length); break; }
+    if (lang.block && rest.startsWith(lang.block[0])) {
+      open = { close: lang.block[1], cls: "c-com" };
+      take("c-com", i + lang.block[0].length);
+      continue;
+    }
+    const triple = lang.triple?.find((q) => rest.startsWith(q));
+    if (triple) { open = { close: triple, cls: "c-str" }; take("c-str", i + 3); continue; }
+    if (lang.quotes.includes(ch)) {
+      let j = i + 1;
+      while (j < code.length && code[j] !== ch) j += code[j] === "\\" ? 2 : 1;
+      if (j >= code.length && lang.multi === ch) { open = { close: ch, cls: "c-str" }; take("c-str", code.length); break; }
+      const end = Math.min(j + 1, code.length);
+      take(lang.jsonKeys && /^\s*:/.test(code.slice(end)) ? "c-prop" : "c-str", end);
+      continue;
+    }
+    if (lang.at && ch === "@") {
+      const at = /^@[\w.-]+/.exec(rest);
+      if (at) { take(lang.at, i + at[0].length); continue; }
+    }
+    const before = i ? code[i - 1] : "";
+    const number = !/[\w$-]/.test(before) && /^(0x[\da-f]+|\d[\d_.]*[a-z%]*)/i.exec(rest);
+    if (number) { take("c-num", i + number[0].length); continue; }
+    const word = (lang.dash ? /^[A-Za-z_][\w-]*/ : /^[A-Za-z_$][\w$]*/).exec(rest);
+    if (word) {
+      const w = word[0];
+      const key = lang.fold ? w.toLowerCase() : w;
+      const after = code.slice(i + w.length);
+      let cls = "";
+      if (lang.kw.has(key)) cls = "c-kw";
+      else if (lang.consts.has(key)) cls = "c-const";
+      else if (lang.keyColon && /^\s*:/.test(after) && !/[.#&:]/.test(before)) cls = "c-prop";
+      else if (lang.keyStart && !code.slice(0, i).trim() && /^\s*[:=]/.test(after)) cls = "c-prop";
+      else if (lang.ids) {
+        if (prevWord === "class") cls = "c-type";
+        else if (prevWord === "def" || prevWord === "function" || after.startsWith("(")) cls = "c-fn";
+        else if (/^[A-Z]/.test(w)) cls = "c-type";
+        else cls = "c-var";
+      }
+      prevWord = w;
+      take(cls, i + w.length);
+      continue;
+    }
+    take("", i + 1);
+  }
+  return { tokens, open };
+}
+
+function codeCell(tokens) {
+  return h("td", { class: "code" }, ...tokens.map(([cls, text]) => cls ? h("span", { class: cls }, text) : text));
+}
+
+function renderDiff(text) {
+  let file = null, body = null, oldNo = 0, newNo = 0, oldPath = null, lang = null;
+  let oldOpen = null, newOpen = null;
+  for (const line of text.split("\n")) {
+    if (line.startsWith("diff --git ")) { file = null; oldPath = null; continue; }
+    if (line.startsWith("--- ")) { oldPath = line.slice(4).replace(/^a\//, ""); continue; }
+    if (line.startsWith("+++ ")) {
+      const added = line.slice(4);
+      file = added === "/dev/null" ? oldPath : added.replace(/^b\//, "");
+      body = h("tbody");
+      lang = langOf(file);
+      diffEl.append(h("div", { class: "file-head" }, file), h("table", {}, body));
+      continue;
+    }
+    if (!body || !file) continue;
+    const hunk = line.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+    if (hunk) {
+      oldNo = Number(hunk[1]); newNo = Number(hunk[2]);
+      oldOpen = newOpen = null;
+      body.append(h("tr", { class: "gap" }, h("td", { colSpan: 4 }, line)));
+      continue;
+    }
+    if (line.startsWith("\\")) continue;
+    const kind = line[0];
+    if (kind !== "+" && kind !== "-" && kind !== " ") continue;
+    // Removed and added lines can differ in what they leave open, so each side tracks its own state.
+    const lexed = tokenize(line.slice(1), lang, kind === "-" ? oldOpen : newOpen);
+    if (kind !== "+") oldOpen = lexed.open;
+    if (kind !== "-") newOpen = lexed.open;
+    const row = h("tr", { class: kind === "+" ? "add" : kind === "-" ? "del" : "" },
+      h("td", { class: "num" }, kind === "+" ? "" : String(oldNo)),
+      h("td", { class: "num" }, kind === "-" ? "" : String(newNo)),
+      h("td", { class: "mark" }, kind === " " ? "" : kind),
+      codeCell(lexed.tokens));
+    body.append(row);
+    if (kind !== "-") rows.set(`${file}:${newNo}`, row);
+    if (kind !== "+") oldNo++;
+    if (kind !== "-") newNo++;
+  }
+}
+
+function focusLine(file, line) {
+  if (highlighted) highlighted.classList.remove("hit");
+  highlighted = rows.get(`${file}:${line}`) || null;
+  if (!highlighted) return false;
+  highlighted.classList.add("hit");
+  highlighted.scrollIntoView({ block: "center" });
+  return true;
+}
+
+function radios(name, legend, options, value, onChange) {
+  return h("fieldset", {}, h("legend", {}, legend), ...options.map((o) =>
+    h("label", { class: "opt" },
+      h("input", { type: "radio", name, value: o.value, checked: value === o.value,
+        onchange: () => onChange(o.value) }),
+      o.label)));
+}
+
+function textBox(id, label, value, onInput, placeholder = "") {
+  return [
+    h("label", { class: "text", htmlFor: id }, label),
+    h("textarea", { id, value, placeholder, oninput: (e) => onInput(e.target.value) }),
+  ];
+}
+
+function nav(backFn, nextLabel, nextFn, enabled) {
+  const next = h("button", { class: "primary", disabled: !enabled, onclick: nextFn }, nextLabel);
+  next.id = "next";
+  return h("div", { class: "nav" },
+    backFn ? h("button", { onclick: backFn }, t("back")) : h("span"), next);
+}
+
+const enableNext = (on) => { document.getElementById("next").disabled = !on; };
+const totalFindings = () => reviewAll ? review.findings.length : Math.min(FIRST_BATCH, review.findings.length);
+
+function show(next, i = 0) { screen = next; index = i; draw(); aside.scrollTop = 0; }
+
+function afterOpening() { review.findings.length ? show("finding", 0) : show("closing"); }
+function afterFinding() {
+  if (index + 1 < totalFindings()) return show("finding", index + 1);
+  if (!reviewAll && review.findings.length > FIRST_BATCH) return show("more");
+  show("closing");
+}
+function beforeClosing() {
+  if (!review.findings.length) return show("opening");
+  if (!reviewAll && review.findings.length > FIRST_BATCH) return show("more");
+  show("finding", totalFindings() - 1);
+}
+
+const verdictLine = (r) => `${t("satisfied")[r.satisfied] ?? r.satisfied} · ${Number(r.confidence)}% ${t("confidence")}`;
+
+function ticketLine(r) {
+  if (!r.ticket) return h("p", { class: "notice" }, t("noTicket"));
+  // Only https links: the ticket URL is untrusted, and javascript: would run here.
+  const name = /^https:\/\//.test(r.ticket_url || "")
+    ? h("a", { href: r.ticket_url, target: "_blank", rel: "noopener noreferrer" }, r.ticket)
+    : r.ticket;
+  return h("p", { class: "muted" }, `${t("against")} `, name);
+}
+
+function drawOpening() {
+  const pr = review.pr;
+  const r = review.requirements;
+  panel.replaceChildren(
+    h("p", { class: "step" }, `PR #${pr.number} by ${pr.author?.login ?? "unknown"} · +${pr.additions} −${pr.deletions}`),
+    h("h1", {}, pr.title),
+    h("h2", {}, t("assessment")),
+    h("p", { class: "verdict" }, verdictLine(r)),
+    ticketLine(r),
+    h("p", { class: "pre" }, r.summary),
+    h("ul", { class: "reqs" }, ...r.items.map((item) => h("li", {},
+      h("b", {}, `${t("status")[item.status] ?? item.status}: ${item.requirement}`),
+      h("span", { class: "pre" }, item.evidence)))),
+    h("p", { class: "muted" }, t("confidenceHelp")),
+    h("h2", {}, t("description")),
+    h("div", { class: "pre body" }, pr.body || t("noDescription")),
+    nav(null, t("start"), afterOpening, true));
+}
+
+function drawFinding() {
+  const f = review.findings[index];
+  const pr = review.pr;
+  const ans = a.findings[index] ||= { decision: null, note: "", note_source: "none" };
+  const inDiff = focusLine(f.file, f.line);
+  const url = `${pr.url.replace(/\/pull\/\d+$/, "")}/blob/${pr.headRefOid}/${f.file.split("/").map(encodeURIComponent).join("/")}#L${Number(f.line)}`;
+  const ready = () => !!ans.decision;
+  const noteWrap = h("div", { hidden: ans.decision === "dismiss" || !ans.decision });
+  const box = textBox("note", t("note"), ans.note, (v) => {
+    ans.note = v;
+    ans.note_source = !v ? "none" : v === f.comment ? "agent" : "reviewer";
+  });
+  noteWrap.append(...box, h("button", { class: "small", onclick: () => {
+    box[1].value = ans.note = f.comment; ans.note_source = "agent"; box[1].focus();
+  } }, t("useAgent")));
+  const choose = (v) => {
+    ans.decision = v;
+    noteWrap.hidden = v === "dismiss";
+    enableNext(ready());
+  };
+  panel.replaceChildren(
+    h("p", { class: "step" }, `${t("finding")} ${index + 1} ${t("of")} ${totalFindings()} · ${Number(f.confidence)}% ${t("confidence")}`),
+    h("a", { class: "loc", href: url, target: "_blank", rel: "noopener noreferrer" }, `${f.file}:${f.line}`),
+    ...(inDiff ? [] : [h("p", { class: "notice" }, t("notInDiff"))]),
+    h("div", { class: "explanation", tabIndex: 0 },
+      h("p", { class: "pre" }, h("strong", {}, f.headline), " ", f.summary),
+      h("h2", {}, t("detail")),
+      h("p", { class: "pre" }, f.explanation)),
+    h("div", { class: "decide" },
+      radios("decision", t("what"), [
+        { value: "must_fix", label: t("whatMust") },
+        { value: "suggestion", label: t("whatSuggest") },
+        { value: "dismiss", label: t("whatDismiss") },
+      ], ans.decision, choose),
+      noteWrap,
+      nav(() => index ? show("finding", index - 1) : show("opening"), t("next"), afterFinding, ready())));
+}
+
+function drawMore() {
+  const left = review.findings.length - FIRST_BATCH;
+  panel.replaceChildren(
+    h("h1", {}, t("more")(left)),
+    h("p", {}, t("moreHelp")),
+    h("div", { class: "nav" },
+      h("button", { onclick: () => show("finding", FIRST_BATCH - 1) }, t("back")),
+      h("span", {},
+        h("button", { onclick: () => { reviewAll = true; show("finding", FIRST_BATCH); } }, t("review")), " ",
+        h("button", { class: "primary", onclick: () => show("closing") }, t("skip")))));
+}
+
+function drawClosing() {
+  if (highlighted) highlighted.classList.remove("hit");
+  highlighted = null;
+  const gaps = review.not_checked;
+  const ready = () => !!(a.closing.intent && a.closing.understanding);
+  panel.replaceChildren(
+    h("h1", {}, t("closing")),
+    h("h2", {}, t("notChecked")),
+    gaps.length
+      ? h("ul", {}, ...gaps.map((gap) => h("li", { class: "pre" }, gap)))
+      : h("p", {}, t("noGaps")),
+    h("h2", {}, t("agentSaid")),
+    h("p", {}, `${t("assessment")} ${verdictLine(review.requirements)}`),
+    radios("intent", t("intent"), [
+      { value: "yes_from_diff", label: t("intentDiff") },
+      { value: "yes_from_agent", label: t("intentAgent") },
+      { value: "not_sure", label: t("intentUnsure") },
+      { value: "no", label: t("intentNo") },
+    ], a.closing.intent, (v) => { a.closing.intent = v; enableNext(ready()); }),
+    ...textBox("intent-note", t("explain"), a.closing.intent_note, (v) => { a.closing.intent_note = v; }),
+    ...textBox("concerns", t("concerns"), a.closing.concerns, (v) => { a.closing.concerns = v; }),
+    radios("understanding", t("understand"), [
+      { value: "all", label: t("understandAll") },
+      { value: "risky_parts", label: t("understandRisky") },
+      { value: "agent_only", label: t("understandAgent") },
+    ], a.closing.understanding, (v) => { a.closing.understanding = v; enableNext(ready()); }),
+    nav(beforeClosing, t("submit"), submit, ready()));
+}
+
+async function submit() {
+  const button = document.getElementById("next");
+  button.disabled = true;
+  const reviewed = a.findings.slice(0, totalFindings()).map((ans, i) => {
+    const f = review.findings[i];
+    return { file: f.file, line: f.line, summary: f.summary, ...ans };
+  });
+  const body = { findings: reviewed, closing: a.closing,
+    not_reviewed: review.findings.length - reviewed.length,
+    minutes: Math.round((Date.now() - startedAt) / 60000) };
+  try {
+    const res = await fetch("/answers", { method: "POST",
+      headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    if (!res.ok) throw new Error(`The server answered ${res.status}.`);
+    screen = "sent";
+    draw();
+  } catch (err) {
+    button.disabled = false;
+    panel.append(h("p", { class: "notice", role: "alert" }, `${t("failed")} (${err.message})`));
+  }
+}
+
+function drawSent() {
+  panel.replaceChildren(h("h1", {}, t("sent")), h("p", {}, t("sentHelp")));
+}
+
+function draw() {
+  panel.classList.toggle("fill", screen === "finding");
+  ({ opening: drawOpening, finding: drawFinding, more: drawMore, closing: drawClosing, sent: drawSent })[screen]();
+}
+
+fetch("/review.json").then((r) => r.json()).then((data) => {
+  review = data;
+  renderDiff(review.diff);
+  draw();
+}).catch((err) => {
+  panel.replaceChildren(h("p", { class: "notice", role: "alert" }, `The review couldn't load. ${err.message}`));
+});
+</script>
+</body>
+</html>
